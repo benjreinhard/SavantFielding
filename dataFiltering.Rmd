@@ -1,0 +1,25 @@
+---
+title: "dataFiltering"
+author: "Benjamin Reinhard and Henry Gliedman"
+date: "10/24/2023"
+output: html_document
+---
+
+```{r}
+library(ggplot2)
+library(readr)
+```
+
+```{r}
+Field<- read_csv("~/Stats 272 F23/Project/Henry_Benjamin/Savant_Fielding.csv")
+
+Field
+```
+
+```{r}
+Field <- Field|>
+  filter(n_outs_above_average> -100)
+Field
+write.csv( Field,"~/Stats 272 F23/Project/Henry_Benjamin/Savant_Fielding2.csv" , row.names=T)
+```
+

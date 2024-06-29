@@ -1,0 +1,169 @@
+---
+title: "final"
+author: "Benjamin Reinhard and Henry Gliedman"
+date: "11/12/2023"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r include=FALSE}
+library(GGally)
+library(dplyr)
+library(leaps)
+library(car)
+library(ggResidpanel)
+library(readr)
+library(tidyr)
+Field<- read_csv("~/Stats 272 F23/Project/Henry_Benjamin/Savant_Fielding2.csv")
+
+#Remove any unwanted rows
+Field<- Field|>
+  select(-...1,-...13,-player_id)|>
+  drop_na(n_5star_percent)
+
+```
+```{r}
+#Rename some of our variables to make them easier to read
+Field<- Field|>
+  rename(OAA= n_outs_above_average, Five_Star_PCT =n_5star_percent, Reaction = rel_league_reaction_distance, Burst= rel_league_burst_distance, Route= rel_league_routing_distance, FeetVsAVG= rel_league_bootup_distance, Name= `last_name, first_name`)
+```
+```{r include=FALSE}
+#5 Number Summaries For Our Variables
+Field|>
+summary()
+```
+
+Below are the Histograms for each variable. 5*, Reaction, Burst, Route, Feet Vs AVG all appear the same so only Route is shown. Homeplate to 1st and Sprint Speed are the same way so Sprint speed is not shown either. 
+
+```{r echo=FALSE, fig.height=2, fig.width=2}
+#Histogram For OAA
+ggplot(Field, aes(x= OAA))+
+  geom_histogram(bins= 20)+
+  labs(title= "OAA")
+#Histogram For 5* Pct Not Shown in Appendix
+ggplot(Field, aes(x= Five_Star_PCT))+
+  geom_histogram(bins= 20)+
+  labs(title= "5 Star")
+#Histogram For Reactionn Not Shown in Appendix
+ggplot(Field, aes(x= Reaction))+
+  geom_histogram(bins= 20)+
+  labs(title= "Reaction")
+#Histogram For Burst Not Shown in Appendix
+ggplot(Field, aes(x=  Burst))+
+  geom_histogram(bins= 20)+
+  labs(title= "Burst")
+#Histogram For Route
+ggplot(Field, aes(x= Route))+
+  geom_histogram(bins= 20)+
+  labs(title= "Route")
+#Histogram For Feet vs Avg Not Shown in Appendix
+ggplot(Field, aes(x= FeetVsAVG))+
+  geom_histogram(bins= 20)+
+  labs(title= "Feet Vs Avg")
+#Histogram For hp_to_1b
+ggplot(Field, aes(x= hp_to_1b))+
+  geom_histogram(bins= 20)+
+  labs(title= "Homeplate to 1st")
+#Histogram For sprint_speed Not Shown in Appendix
+ggplot(Field, aes(x= sprint_speed))+
+  geom_histogram(bins= 20)+
+  labs(title= "Sprint Speed (FPS)")
+
+
+```
+
+```{r echo=FALSE}
+#Remove Name from the data and then run a matrix of scatterplots to observe correlations in our data
+FieldN<- Field|>
+  select(-Name)|>
+  drop_na(Burst, Reaction, Route, FeetVsAVG)
+ggpairs(FieldN)
+```
+```{r}
+#Constructing a preliminary Linear Model With All of Our Variables (We will use the FieldN dataset since it removed the NA values and doesn't have name)
+fieldmodel<- lm(OAA ~ Reaction + Burst + Route +  FeetVsAVG + hp_to_1b + sprint_speed, data= FieldN)
+summary(fieldmodel)
+confint(fieldmodel)
+
+```
+Below is a set of larger scatter plots between OAA and certain explanatory variables to visualize their relationship.
+
+```{r echo=FALSE, fig.height=2, fig.width=6}
+#ENLARGE THE SCATTERPLOTS OF THE MOST CORRELATED EXPLANITORY VARIABLES TO OAA 
+
+
+#BURST PLOT
+ggplot(Field, aes(x= Burst, y= OAA))+
+  geom_point()+
+  geom_smooth(method= lm, se = F)+
+  labs(title = "Burst Vs OAA", x= "Burst", y= "OAA")
+
+#Feet vs Average PLOT
+ggplot(Field, aes(x= FeetVsAVG, y= OAA))+
+  geom_point()+
+  geom_smooth(method= lm, se = F)+
+  labs(title = "Feet vs AVG Vs OAA", x= "Feet Vs Avg", y= "OAA")
+
+#HOMEPLATE TO 1ST BASE PLOT
+ggplot(Field, aes(x= hp_to_1b, y= OAA))+
+  geom_point()+
+  geom_smooth(method= lm, se = F)+
+  labs(title = "Homeplate to 1st Base Vs OAA", x= "Homeplate to 1st Base", y= "OAA")
+
+```
+
+```{r include=FALSE}
+#Best Subset Regression With Our Field Model
+# Variable selection: best subsets regression
+bestfield <- regsubsets(OAA ~ Five_Star_PCT + Reaction + Burst + Route +  FeetVsAVG + hp_to_1b + sprint_speed, data= FieldN, nbest = 2)
+out <- summary(bestfield)     # The summary calculates our criteria values so we should save it
+out
+
+# To get cleaner output, with criteria measures 
+Subsets <- as_tibble(out$which) %>%       # which tells us the variables in each model
+  mutate(R2 = round(out$rsq, 3),          
+         R2adj = round(out$adjr2, 3),
+         Cp = round(out$cp,1)) %>%
+  select(-1)
+         
+```
+
+```{r include=FALSE}
+step(fieldmodel, direction = "both", scope = formula(fieldmodel))
+```
+
+```{r}
+#Make the Best Model
+bestmodel<- lm(formula = OAA ~ Reaction + Burst + hp_to_1b + sprint_speed, 
+    data = FieldN)
+
+summary(bestmodel)
+#confint(bestmodel)
+vif(bestmodel)
+
+fivestarbestmodel<- lm(formula = Five_Star_PCT ~ Reaction + Burst + Route + FeetVsAVG + 
+    hp_to_1b, data = FieldN)
+#summary(fivestarbestmodel)
+
+#Put the Model in a Dataset for Charting
+FieldModels<- Field|>
+  mutate(Pred_FIVESTAR = 47.035+ 4.251* Reaction + 3.862 * Burst + 3.318 * Route- 2.657 * FeetVsAVG- 9.647 * hp_to_1b, Pred_OAA= -12.687 + 1.379 * Reaction + 2982 * Burst- 3.591 * hp_to_1b + 1.054 * sprint_speed )|>
+  drop_na(Pred_OAA)|>
+  mutate(Pred_OAA= Pred_OAA/417.547)
+
+#Summary Stats of our Model
+FieldModels|>
+  summarize(max= max(Pred_OAA), min= min(Pred_OAA), mean= mean(Pred_OAA), mean_oaa= mean(OAA))
+
+FieldModels
+
+ggplot(data= FieldModels, aes(x= Pred_OAA, y= OAA))+ 
+        geom_point()+
+         geom_smooth(method=lm, se= F)+
+  labs(title= "Predicted Vs Actual OAA Values", x= "Predicted Outs Above Average", y= "Actual Outs Above Average", subtitle = "Adjusted R^2= .5033", caption = "All Data From Baseball Savant")+
+  theme_bw()
+
+resid_panel(bestmodel)
+```
+
